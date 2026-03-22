@@ -9,7 +9,7 @@ from app.prompts import SYSTEM_PROMPT, TOOL_DEFINITIONS
 logger = logging.getLogger(__name__)
 
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
-MODEL = "claude-sonnet-4-20250514"
+MODEL = "claude-sonnet-4-5-20251022"
 MAX_TOKENS = 4096
 MAX_TOOL_ITERATIONS = 10
 
