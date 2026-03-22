@@ -109,7 +109,7 @@ class TripletexClient:
         return await self.post("/ledger/voucher", data)
 
     async def get_vat_types(self) -> list:
-        result = await self.get("/vat", {"count": 100})
+        result = await self.get("/vat/type", {"count": 100})
         return result.get("values", [])
 
     async def get_currencies(self) -> list:
