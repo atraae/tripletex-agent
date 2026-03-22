@@ -23,14 +23,16 @@ class TripletexAgent:
     async def solve(self, prompt: str, files: list) -> dict:
         """Main entry point: interpret prompt and execute Tripletex operations."""
 
-        # Build initial user message
         content = []
 
         # Attach files if provided
         for file in files:
             mime_type = file.get("mime_type", "application/octet-stream")
-            file_data = file.get("data", "")  # base64 encoded
-            file_name = file.get("name", "attachment")
+            # Competition sends base64 in "content_base64" field
+            file_data = file.get("content_base64") or file.get("data", "")
+            file_name = file.get("filename") or file.get("name", "attachment")
+
+            logger.info(f"Attached file: {file_name} ({mime_type})")
 
             if mime_type == "application/pdf":
                 content.append({
@@ -50,7 +52,7 @@ class TripletexAgent:
                         "data": file_data
                     }
                 })
-            logger.info(f"Attached file: {file_name} ({mime_type})")
+            # Skip unknown file types silently
 
         content.append({
             "type": "text",
@@ -69,11 +71,9 @@ class TripletexAgent:
             stop_reason = response.get("stop_reason")
             response_content = response.get("content", [])
 
-            # Add assistant response to history
             messages.append({"role": "assistant", "content": response_content})
 
             if stop_reason == "end_turn":
-                # Extract final text response
                 for block in response_content:
                     if block.get("type") == "text":
                         try:
@@ -83,7 +83,6 @@ class TripletexAgent:
                 return {"summary": "Task completed", "actions_taken": []}
 
             elif stop_reason == "tool_use":
-                # Execute tool calls
                 tool_results = []
                 for block in response_content:
                     if block.get("type") == "tool_use":
@@ -109,7 +108,9 @@ class TripletexAgent:
         return {"summary": "Task completed (max iterations reached)", "actions_taken": []}
 
     async def _call_claude(self, messages: list) -> dict:
-        """Call the Anthropic API."""
+        """Call the Anthropic API and log full error on failure."""
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+
         payload = {
             "model": MODEL,
             "max_tokens": MAX_TOKENS,
@@ -124,10 +125,12 @@ class TripletexAgent:
                 json=payload,
                 headers={
                     "Content-Type": "application/json",
-                    "x-api-key": os.environ.get("ANTHROPIC_API_KEY", ""),
+                    "x-api-key": api_key,
                     "anthropic-version": "2023-06-01"
                 }
             )
+            if response.status_code != 200:
+                logger.error(f"Anthropic API error {response.status_code}: {response.text}")
             response.raise_for_status()
             return response.json()
 
@@ -177,4 +180,3 @@ class TripletexAgent:
         except Exception as e:
             logger.error(f"Tool {tool_name} failed: {e}")
             return {"error": str(e), "tool": tool_name}
-
