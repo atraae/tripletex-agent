@@ -1,0 +1,10 @@
+services:
+  agent:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+    volumes:
+      - ./app:/app/app  # hot reload during development
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
