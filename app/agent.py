@@ -122,7 +122,11 @@ class TripletexAgent:
             response = await http.post(
                 ANTHROPIC_API_URL,
                 json=payload,
-                headers={"Content-Type": "application/json"}
+                headers={
+                    "Content-Type": "application/json",
+                    "x-api-key": os.environ.get("ANTHROPIC_API_KEY", ""),
+                    "anthropic-version": "2023-06-01"
+                }
             )
             response.raise_for_status()
             return response.json()
