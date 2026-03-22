@@ -108,7 +108,8 @@ class TripletexAgent:
         return {"summary": "Task completed (max iterations reached)", "actions_taken": []}
 
     async def _call_claude(self, messages: list) -> dict:
-        """Call the Anthropic API and log full error on failure."""
+        """Call the Anthropic API with retry on rate limit."""
+        import asyncio
         api_key = os.environ.get("ANTHROPIC_API_KEY", "")
 
         payload = {
@@ -119,20 +120,25 @@ class TripletexAgent:
             "messages": messages
         }
 
-        async with httpx.AsyncClient(timeout=60) as http:
-            response = await http.post(
-                ANTHROPIC_API_URL,
-                json=payload,
-                headers={
-                    "Content-Type": "application/json",
-                    "x-api-key": api_key,
-                    "anthropic-version": "2023-06-01"
-                }
-            )
-            if response.status_code != 200:
-                logger.error(f"Anthropic API error {response.status_code}: {response.text}")
-            response.raise_for_status()
-            return response.json()
+        headers = {
+            "Content-Type": "application/json",
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01"
+        }
+
+        for attempt in range(3):
+            async with httpx.AsyncClient(timeout=60) as http:
+                response = await http.post(ANTHROPIC_API_URL, json=payload, headers=headers)
+                if response.status_code == 429:
+                    wait = 10 * (attempt + 1)
+                    logger.warning(f"Rate limited, waiting {wait}s...")
+                    await asyncio.sleep(wait)
+                    continue
+                if response.status_code != 200:
+                    logger.error(f"Anthropic API error {response.status_code}: {response.text}")
+                response.raise_for_status()
+                return response.json()
+        raise Exception("Max retries exceeded due to rate limiting")
 
     async def _execute_tool(self, tool_name: str, tool_input: dict) -> dict:
         """Dispatch tool calls to the Tripletex client."""
